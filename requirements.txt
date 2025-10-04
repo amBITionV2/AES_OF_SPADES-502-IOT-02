@@ -1,6 +1,15 @@
-# file: requirements.txt
-PyQt6
-psutil
-cryptography
-argon2-cffi
-pyshamir
+# UR Safe Stick - Requirements
+# Python 3.9+ required
+
+# GUI Framework
+PyQt6==6.9.1
+
+# System utilities
+psutil==7.1.0
+
+# Cryptography
+cryptography==46.0.2
+argon2-cffi==25.1.0
+
+# Secret Sharing
+pyshamir==1.0.4

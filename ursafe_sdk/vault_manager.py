@@ -23,12 +23,15 @@ class VaultManager:
         """
         Initializes a new vault, now binding it to the current system's fingerprint.
         """
+        from . import usb_manager, log_manager
+        
         os.makedirs(self.ursafe_dir, exist_ok=True)
         usb_salt = os.urandom(16)
         host_secret_blob = os.urandom(32)
         
-        # **NEW**: Get the system fingerprint
+        # Get the system fingerprint and USB signature
         system_fingerprint = system_utils.get_system_fingerprint()
+        usb_signature = usb_manager.get_usb_signature(self.usb_path)
 
         all_shares = chunk_manager.split_master_key(host_secret_blob)
         num_host_chunks = chunk_manager.DEFAULT_REQUIRED_SHARES // 2
@@ -36,21 +39,26 @@ class VaultManager:
         usb_chunks = all_shares[num_host_chunks:]
         chunk_manager.save_host_chunks(host_chunks)
 
-        # **UPDATED**: Store the fingerprint in the metadata
+        # Store fingerprint and USB signature in metadata
         metadata = {
             'salt_hex': usb_salt.hex(),
             'usb_chunks_hex': [chunk.hex() for chunk in usb_chunks],
-            'system_fingerprint_hex': system_fingerprint.hex()
+            'system_fingerprint_hex': system_fingerprint.hex(),
+            'usb_signature': usb_signature,
+            'version': '1.0'
         }
         with open(self.meta_file, 'w') as f:
             json.dump(metadata, f)
         
-        # **UPDATED**: Include the fingerprint in the key derivation material
+        # Include the fingerprint in the key derivation material
         key_material = pin.encode('utf-8') + usb_salt + host_secret_blob + system_fingerprint
         vault_key = crypto_manager.derive_key_argon2(key_material, usb_salt)
 
         initial_vault_data = json.dumps({}).encode('utf-8')
         self.lock_vault(vault_key, initial_vault_data)
+        
+        # Log the initialization
+        log_manager.add_log_entry(self.usb_path, f"Vault initialized on system: {system_utils.get_system_info()['hostname']}")
         
         print("Vault initialized successfully and bound to this computer.")
 
@@ -58,15 +66,25 @@ class VaultManager:
         """
         Orchestrates unlocking, now with a mandatory fingerprint check.
         """
+        from . import usb_manager, log_manager
+        
         with open(self.meta_file, 'r') as f:
             metadata = json.load(f)
         
-        # **NEW**: Verify the system fingerprint
+        # Verify the system fingerprint
         stored_fingerprint = bytes.fromhex(metadata['system_fingerprint_hex'])
         current_fingerprint = system_utils.get_system_fingerprint()
 
         if stored_fingerprint != current_fingerprint:
+            log_manager.add_log_entry(self.usb_path, "SECURITY: Unlock attempted on different system")
             raise PermissionError("Hardware changed! This vault is bound to a different computer.")
+
+        # Verify USB signature if available
+        if 'usb_signature' in metadata:
+            current_usb_sig = usb_manager.get_usb_signature(self.usb_path)
+            if metadata['usb_signature'] != current_usb_sig:
+                log_manager.add_log_entry(self.usb_path, "SECURITY: USB signature mismatch - possible clone")
+                raise PermissionError("USB signature mismatch. This may be a cloned device.")
 
         usb_salt = bytes.fromhex(metadata['salt_hex'])
         usb_chunks = [bytes.fromhex(chunk) for chunk in metadata['usb_chunks_hex']]
@@ -75,6 +93,7 @@ class VaultManager:
         host_chunks = chunk_manager.load_host_chunks(num_host_chunks)
 
         if len(host_chunks) < num_host_chunks:
+            log_manager.add_log_entry(self.usb_path, "SECURITY: Insufficient host chunks found")
             raise PermissionError("Could not find all required host chunks. Is this the correct computer?")
 
         all_available_shares = host_chunks + usb_chunks
@@ -82,22 +101,64 @@ class VaultManager:
             required_shares = all_available_shares[:chunk_manager.DEFAULT_REQUIRED_SHARES]
             host_secret_blob = chunk_manager.reconstruct_master_key(required_shares)
         except Exception as e:
+            log_manager.add_log_entry(self.usb_path, "SECURITY: Failed to reconstruct master key")
             raise ValueError(f"Failed to reconstruct secret key. Chunks may be missing or corrupt. {e}")
             
-        # **UPDATED**: Include the CURRENT fingerprint in key derivation
+        # Include the CURRENT fingerprint in key derivation
         key_material = pin.encode('utf-8') + usb_salt + host_secret_blob + current_fingerprint
         vault_key = crypto_manager.derive_key_argon2(key_material, usb_salt)
 
-        with open(self.vault_file, 'rb') as f:
-            nonce = f.read(crypto_manager.AES_NONCE_SIZE)
-            encrypted_data = f.read()
+        try:
+            with open(self.vault_file, 'rb') as f:
+                nonce = f.read(crypto_manager.AES_NONCE_SIZE)
+                encrypted_data = f.read()
+            
+            decrypted_data_bytes = crypto_manager.decrypt_aes_gcm(vault_key, nonce, encrypted_data)
+            vault_data = json.loads(decrypted_data_bytes.decode('utf-8'))
+            
+            # Log successful unlock
+            log_manager.add_log_entry(self.usb_path, f"Vault unlocked successfully ({len(vault_data)} secrets)")
+            
+            return vault_data
+            
+        except Exception as e:
+            log_manager.add_log_entry(self.usb_path, "SECURITY: Vault unlock failed - invalid PIN or corrupted data")
+            raise ValueError(f"Failed to unlock vault: {e}")
+
+    def save_vault(self, pin: str, vault_data: dict):
+        """
+        High-level method to save vault data with proper key derivation and logging.
+        """
+        from . import log_manager
         
-        decrypted_data_bytes = crypto_manager.decrypt_aes_gcm(vault_key, nonce, encrypted_data)
-        return json.loads(decrypted_data_bytes.decode('utf-8'))
+        # Re-derive the vault key (same process as unlock)
+        with open(self.meta_file, 'r') as f:
+            metadata = json.load(f)
+        
+        system_fingerprint = system_utils.get_system_fingerprint()
+        usb_salt = bytes.fromhex(metadata['salt_hex'])
+        usb_chunks = [bytes.fromhex(chunk) for chunk in metadata['usb_chunks_hex']]
+        
+        num_host_chunks = chunk_manager.DEFAULT_REQUIRED_SHARES // 2
+        host_chunks = chunk_manager.load_host_chunks(num_host_chunks)
+        
+        all_available_shares = host_chunks + usb_chunks
+        required_shares = all_available_shares[:chunk_manager.DEFAULT_REQUIRED_SHARES]
+        host_secret_blob = chunk_manager.reconstruct_master_key(required_shares)
+        
+        key_material = pin.encode('utf-8') + usb_salt + host_secret_blob + system_fingerprint
+        vault_key = crypto_manager.derive_key_argon2(key_material, usb_salt)
+        
+        # Encrypt and save
+        vault_data_bytes = json.dumps(vault_data).encode('utf-8')
+        self.lock_vault(vault_key, vault_data_bytes)
+        
+        # Log the save operation
+        log_manager.add_log_entry(self.usb_path, f"Vault saved with {len(vault_data)} secrets")
 
     def lock_vault(self, vault_key: bytes, vault_data_bytes: bytes):
         """
-        Encrypts the given vault data and writes it to the vault file. (No changes here)
+        Encrypts the given vault data and writes it to the vault file.
         """
         nonce, encrypted_data = crypto_manager.encrypt_aes_gcm(vault_key, vault_data_bytes)
         with open(self.vault_file, 'wb') as f:
