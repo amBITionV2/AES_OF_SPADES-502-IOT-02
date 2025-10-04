@@ -1,0 +1,22 @@
+# file: .gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.spec
+
+# IDE / OS specific
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store

@@ -1,0 +1,6 @@
+# file: requirements.txt
+PyQt6
+psutil
+cryptography
+argon2-cffi
+pyshamir
