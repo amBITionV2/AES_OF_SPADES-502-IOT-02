@@ -4,7 +4,26 @@ Manages detecting, identifying, and verifying USB devices.
 """
 import psutil
 import os
+# file: ursafe_sdk/usb_manager.py (add this function)
 
+def verify_stick(drive_path):
+    """
+    Verifies if a given drive is an initialized UR Safe Stick.
+
+    For now, this is a simple check for the existence of the '.ursafe' directory.
+    Later, this will be expanded to check for a valid, signed manifest file.
+
+    Args:
+        drive_path (str): The mount point of the drive to check.
+
+    Returns:
+        bool: True if the drive is a valid stick, False otherwise.
+    """
+    if not drive_path or not os.path.isdir(drive_path):
+        return False
+
+    ursafe_path = os.path.join(drive_path, ".ursafe")
+    return os.path.isdir(ursafe_path)
 def find_usb_drives():
     """
     Detects all removable USB storage devices connected to the system.
