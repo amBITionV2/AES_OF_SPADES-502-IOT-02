@@ -143,6 +143,45 @@ def find_usb_drives():
             
     return removable_drives
 
+def get_drive_info(drive_path: str) -> dict:
+    """
+    Get detailed information about a drive/USB stick.
+    
+    Args:
+        drive_path: Path to the drive (e.g., 'F:\\')
+    
+    Returns:
+        Dictionary with drive information
+    """
+    try:
+        if not os.path.exists(drive_path):
+            return {"error": "Drive path does not exist"}
+        
+        # Get disk usage
+        usage = psutil.disk_usage(drive_path)
+        
+        # Get drive info from partitions
+        partitions = psutil.disk_partitions(all=True)
+        drive_info = None
+        for partition in partitions:
+            if partition.mountpoint == drive_path:
+                drive_info = partition
+                break
+        
+        result = {
+            "total": usage.total,
+            "used": usage.used,
+            "free": usage.free,
+            "fstype": drive_info.fstype if drive_info else "Unknown",
+            "serial": get_usb_signature(drive_path),  # Use our USB signature as serial
+            "device": drive_info.device if drive_info else "Unknown"
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to get drive info: {e}"}
+
 # Self-test functionality
 if __name__ == '__main__':
     print("--- Running usb_manager.py self-test ---")

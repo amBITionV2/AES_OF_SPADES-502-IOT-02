@@ -27,11 +27,11 @@ def get_previous_hash(log_file_path):
             if not lines:
                 return "genesis"
             
-            # Get the last entry and hash it
+            # Get the last entry and use its stored current_hash
             last_entry = lines[-1].strip()
             if last_entry:
-                last_hash = crypto_manager.hash_sha256(last_entry.encode('utf-8'))
-                return last_hash.hex()
+                entry = json.loads(last_entry)
+                return entry.get("current_hash", "genesis")
             else:
                 return "genesis"
     except Exception:
@@ -169,6 +169,18 @@ def get_log_entries(drive_path):
     except Exception as e:
         print(f"Error reading log entries: {e}")
         return []
+
+def get_log_chain(drive_path: str) -> list:
+    """
+    Alias for get_log_entries() to maintain compatibility.
+    
+    Args:
+        drive_path: Path to the USB drive
+    
+    Returns:
+        List of log entry dictionaries
+    """
+    return get_log_entries(drive_path)
 
 # Self-test functionality
 if __name__ == '__main__':

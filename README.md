@@ -77,6 +77,7 @@ graph TD
     O --> P[AES-256-GCM Decryption]
     P --> Q[Password data revealed]
 
+
 ```
 
 ### 🗂️ Data Storage Locations
@@ -105,6 +106,7 @@ graph LR
     U2 -.->|Requires| S1
     H1 -.->|Combined with| U2
     S2 -.->|Bound to| U1
+
 ```
 
 ## 🛠️ Installation & Setup

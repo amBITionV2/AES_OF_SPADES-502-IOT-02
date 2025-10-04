@@ -125,6 +125,15 @@ def verify_system_fingerprint(stored_fingerprint: bytes) -> bool:
     current_fingerprint = get_system_fingerprint()
     return current_fingerprint == stored_fingerprint
 
+def get_hardware_info() -> dict:
+    """
+    Alias for get_system_info() to maintain compatibility.
+    
+    Returns:
+        Dictionary with system information
+    """
+    return get_system_info()
+
 # --- Self-Test Block ---
 if __name__ == '__main__':
     print("--- Running system_utils.py self-test ---")
