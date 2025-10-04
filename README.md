@@ -77,11 +77,6 @@ graph TD
     O --> P[AES-256-GCM Decryption]
     P --> Q[Password data revealed]
 
-    style A fill:#e1f5fe
-    style H fill:#c8e6c9
-    style J fill:#fff3e0
-    style P fill:#fce4ec
-    style M fill:#f3e5f5
 ```
 
 ### 🗂️ Data Storage Locations
@@ -110,10 +105,6 @@ graph LR
     U2 -.->|Requires| S1
     H1 -.->|Combined with| U2
     S2 -.->|Bound to| U1
-
-    style U1 fill:#ffcdd2
-    style H1 fill:#c8e6c9
-    style S1 fill:#e1f5fe
 ```
 
 ## 🛠️ Installation & Setup
