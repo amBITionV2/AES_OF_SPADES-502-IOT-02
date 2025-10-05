@@ -332,8 +332,8 @@ For hackathon/presentation purposes:
 ### 🎨 Optional Enhancements (Team 3)
 
 - [x] Basic UI styling - Functional and clean
-- [ ] Advanced UI/UX polish - Enhanced visual design (optional)
-- [ ] Demo automation scripts - For presentations (optional)
+- [x] Advanced UI/UX polish - Enhanced visual design (optional)
+- [x] Demo automation scripts - For presentations (optional)
 - [ ] Additional assets and documentation - Marketing materials (optional)
 
 ## 🤝 Contributing
